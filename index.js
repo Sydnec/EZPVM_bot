@@ -1,6 +1,7 @@
 import "dotenv/config";
 
 import { Client, GatewayIntentBits, Collection } from "discord.js";
+import { error } from "./logger.js";
 
 // Commandes
 import * as percoCommand from "./commands/perco.js";
@@ -28,5 +29,13 @@ client.once("clientReady", () => clientReady(client));
 client.on("interactionCreate", (interaction) =>
   interactionCreate(client, interaction),
 );
+
+process.on("unhandledRejection", (reason) => {
+  error("Promesse rejetée non gérée:", reason);
+});
+
+process.on("uncaughtException", (err) => {
+  error("Exception non capturée:", err);
+});
 
 client.login(process.env.DISCORD_TOKEN);

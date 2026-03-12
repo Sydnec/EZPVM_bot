@@ -6,6 +6,7 @@ import {
   MessageFlags,
 } from "discord.js";
 import * as db from "../../database.js";
+import { info, warn, error as logError } from "../../logger.js";
 
 export default async function handleButton(client, interaction) {
   const [action, combatIdStr] = interaction.customId.split("_");
@@ -13,8 +14,15 @@ export default async function handleButton(client, interaction) {
 
   if (action !== "validate" && action !== "refuse") return;
 
+  info(
+    `Action bouton: ${action} sur combat #${combatId} par ${interaction.user.tag} (${interaction.user.id})`,
+  );
+
   // Vérification rôle Lieutenant
   if (!interaction.member.roles.cache.has(process.env.ROLE_OFFICIER)) {
+    warn(
+      `Refus permission validation: ${interaction.user.tag} (${interaction.user.id}) sur combat #${combatId}`,
+    );
     return interaction.reply({
       content: "Seuls les Lieutenants peuvent valider ou refuser un report.",
       flags: MessageFlags.Ephemeral,
@@ -46,18 +54,19 @@ export default async function handleButton(client, interaction) {
         EmbedBuilder.from(e),
       );
       if (originalEmbeds.length > 0) {
-        originalEmbeds[0]
-          .setColor(0x95a5a6)
-          .addFields({
-            name: "Statut",
-            value: `❌ Refusé par <@${interaction.user.id}>`,
-          });
+        originalEmbeds[0].setColor(0x95a5a6).addFields({
+          name: "Statut",
+          value: `❌ Refusé par <@${interaction.user.id}>`,
+        });
       }
 
       await interaction.message.edit({
         embeds: originalEmbeds,
         components: [disabledRow],
       });
+      info(
+        `Report refusé: combat #${combatId} par ${interaction.user.tag} (${interaction.user.id})`,
+      );
       return;
     }
 
@@ -121,10 +130,14 @@ export default async function handleButton(client, interaction) {
       components: [disabledRow],
     });
 
+    info(
+      `Report validé: combat #${combatId} par ${interaction.user.tag} (${interaction.user.id}), points=${result.points}, ennemis=${result.combat.ennemis}, alliés=${allyIds.length}`,
+    );
+
     // Mettre à jour le ladder épinglé
     await client.updateLadderMessage();
   } catch (error) {
-    console.error("[PercoBot] Erreur validation bouton:", error);
+    logError("Erreur validation bouton:", error);
     await interaction
       .followUp({
         content: "Une erreur est survenue lors du traitement.",

@@ -4,17 +4,16 @@ import * as db from "../database.js";
 import * as percoCommand from "../commands/perco.js";
 import * as configCommand from "../commands/config.js";
 import updateLadderMessage from "./updateLadderMessage.js";
+import { info, error as logError } from "../logger.js";
 
 export default async function clientReady(client) {
-  console.log(`[PercoBot] Connecté en tant que ${client.user.tag}`);
+  info(`Connecté en tant que ${client.user.tag}`);
 
   // Initialiser la BDD
   db.init();
 
   // Enregistrer les slash commands sur le serveur
-  const rest = new REST({ version: "10" }).setToken(
-    process.env.DISCORD_TOKEN,
-  );
+  const rest = new REST({ version: "10" }).setToken(process.env.DISCORD_TOKEN);
   const commands = [percoCommand.data.toJSON(), configCommand.data.toJSON()];
 
   try {
@@ -25,16 +24,16 @@ export default async function clientReady(client) {
       ),
       { body: commands },
     );
-    console.log("[PercoBot] Slash commands enregistrées.");
+    info("Slash commands enregistrées.");
   } catch (error) {
-    console.error("[PercoBot] Erreur enregistrement commandes:", error);
+    logError("Erreur enregistrement commandes:", error);
   }
 
   // Cron : reset chaque lundi à 00h00
   cron.schedule(
     "0 0 * * 1",
     async () => {
-      console.log("[PercoBot] Reset hebdomadaire...");
+      info("Reset hebdomadaire...");
       try {
         const top = db.weeklyReset();
         const guild = client.guilds.cache.get(process.env.GUILD_ID);
@@ -79,9 +78,9 @@ export default async function clientReady(client) {
 
         // Mettre à jour le message épinglé du ladder (vide après reset)
         await updateLadderMessage(client);
-        console.log("[PercoBot] Reset hebdomadaire terminé.");
+        info("Reset hebdomadaire terminé.");
       } catch (error) {
-        console.error("[PercoBot] Erreur reset hebdo:", error);
+        logError("Erreur reset hebdo:", error);
       }
     },
     { timezone: "Europe/Paris" },

@@ -10,7 +10,11 @@ export const CONFIG_KEYS = {
   multi_moins1: "Multi. -1 allié",
   multi_moins2: "Multi. -2 alliés",
   multi_moins3: "Multi. -3 alliés",
-  multi_seul: "Multi. Seul (vs 4-5)",
+  multi_moins4: "Multi. -4 alliés",
+  multi_plus1: "Multi. +1 allié",
+  multi_plus2: "Multi. +2 alliés",
+  multi_plus3: "Multi. +3 alliés",
+  multi_plus4: "Multi. +4 alliés",
 };
 
 export default async function voir(interaction) {

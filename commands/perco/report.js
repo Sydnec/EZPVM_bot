@@ -6,6 +6,7 @@ import {
   MessageFlags,
 } from "discord.js";
 import * as db from "../../database.js";
+import { info } from "../../logger.js";
 
 export default async function report(interaction) {
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
@@ -19,6 +20,10 @@ export default async function report(interaction) {
     interaction.options.getString("alliance_focus") === "Oui";
   const screen1 = interaction.options.getAttachment("screen1");
   const screen2 = interaction.options.getAttachment("screen2");
+
+  info(
+    `Début report perco par ${interaction.user.tag} (${interaction.user.id})`,
+  );
 
   // Extraction des IDs depuis les mentions
   const allyIds = [];
@@ -56,6 +61,9 @@ export default async function report(interaction) {
     screen2Url: screen2.url,
   });
   const combatId = result.lastInsertRowid;
+  info(
+    `Report créé: combat #${combatId} par ${interaction.user.tag} (${interaction.user.id})`,
+  );
 
   // Calcul de prévisualisation des points
   const config = db.getConfig();
@@ -82,7 +90,11 @@ export default async function report(interaction) {
         value: allyIds.map((id) => `<@${id}>`).join(", "),
         inline: true,
       },
-      { name: "Alliance Focus", value: allianceFocus ? "Oui" : "Non", inline: true },
+      {
+        name: "Alliance Focus",
+        value: allianceFocus ? "Oui" : "Non",
+        inline: true,
+      },
       {
         name: "Points estimés",
         value: `**${previewPoints}** pts/joueur`,
@@ -90,7 +102,7 @@ export default async function report(interaction) {
       },
     )
     .setFooter({
-      text: `Report par ${interaction.user.tag} | Combat #${combatId}`,
+      text: `Report par ${interaction.member.displayName} | Combat #${combatId}`,
     })
     .setTimestamp();
 
@@ -134,6 +146,10 @@ export default async function report(interaction) {
     embeds: [embedInfo, embedScreen1, embedScreen2],
     components: [row],
   });
+
+  info(
+    `Report envoyé en validation: combat #${combatId} dans channel ${process.env.CHANNEL_VALIDATION}`,
+  );
 
   await interaction.editReply({
     content: `Votre report (Combat #${combatId}) a été envoyé dans <#${process.env.CHANNEL_VALIDATION}> pour validation.`,

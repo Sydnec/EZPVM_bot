@@ -7,19 +7,20 @@ export default async function updateLadderMessage(client) {
 
   const channel = guild.channels.cache.get(process.env.CHANNEL_LADDER);
   if (!channel) return;
+  const currentWeek = db.getCurrentWeek();
 
-  // Chercher le message épinglé du bot
-  const pinsResult = await channel.messages.fetchPins();
-  const pins = pinsResult instanceof Map ? [...pinsResult.values()] : Array.isArray(pinsResult) ? pinsResult : [];
-  const ladderMsg = pins.find((m) => m.author.id === client.user.id);
+  // Récupérer le dernier message non-système du bot dans le channel
+  const messages = await channel.messages.fetch({ limit: 10 });
+  const ladderMsg =
+    messages.find((m) => m.author.id === client.user.id && !m.system) ?? null;
 
   const ladder = db.getLadder();
 
   const embed = new EmbedBuilder()
-    .setTitle("Ladder Percepteurs / Prismes")
+    .setTitle(`Ladder Percepteurs / Prismes - Semaine ${currentWeek}`)
     .setColor(0xffd700)
     .setTimestamp()
-    .setFooter({ text: `Semaine ${db.getCurrentWeek()}` });
+    .setFooter({ text: `Semaine ${currentWeek}` });
 
   if (ladder.length === 0) {
     embed.setDescription("Aucun combat validé cette semaine.");
@@ -33,16 +34,12 @@ export default async function updateLadderMessage(client) {
     embed.setDescription(desc);
   }
 
-  if (ladderMsg) {
+  const ladderMsgWeek = ladderMsg?.embeds?.[0]?.footer?.text ?? null;
+  const isCurrentWeekMessage = ladderMsgWeek === `Semaine ${currentWeek}`;
+
+  if (ladderMsg && isCurrentWeekMessage) {
     await ladderMsg.edit({ embeds: [embed] });
   } else {
-    const newMsg = await channel.send({ embeds: [embed] });
-    await newMsg
-      .pin()
-      .catch(() =>
-        console.warn(
-          '[PercoBot] Impossible d\'épingler le message du ladder. Vérifiez la permission "Gérer les messages".',
-        ),
-      );
+    await channel.send({ embeds: [embed] }).pin();
   }
 }
