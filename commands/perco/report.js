@@ -68,6 +68,7 @@ export default async function report(interaction) {
   // Calcul de prévisualisation des points
   const config = db.getConfig();
   const previewPoints = db.calculatePoints(
+    type,
     config,
     resultat,
     role,

@@ -29,6 +29,13 @@ export default async function clientReady(client) {
     logError("Erreur enregistrement commandes:", error);
   }
 
+  // Créer ou mettre à jour le message du ladder au démarrage
+  try {
+    await updateLadderMessage(client);
+  } catch (error) {
+    logError("Erreur mise à jour ladder au démarrage:", error);
+  }
+
   // Cron : reset chaque lundi à 00h00
   cron.schedule(
     "0 0 * * 1",

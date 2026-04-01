@@ -15,6 +15,8 @@ export const CONFIG_KEYS = {
   multi_plus2: "Multi. +2 alliés",
   multi_plus3: "Multi. +3 alliés",
   multi_plus4: "Multi. +4 alliés",
+  multiplicateur_perco: "Multiplicateur Perco",
+  multiplicateur_prisme: "Multiplicateur Prisme",
 };
 
 export default async function voir(interaction) {

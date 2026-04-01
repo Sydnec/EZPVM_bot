@@ -66,7 +66,7 @@ web_modules/
 .yarn-integrity
 
 # SQLite database
-*.db
+*.db*
 
 # dotenv environment variable files
 .env

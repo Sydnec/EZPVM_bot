@@ -2,6 +2,7 @@ import Database from "better-sqlite3";
 import { fileURLToPath } from "url";
 import { dirname, join } from "path";
 import { debug } from "./logger.js";
+import { EmbedBuilder } from "discord.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -44,33 +45,35 @@ export function init() {
     );
   `);
 
-  // Insérer les valeurs par défaut si la table config est vide
-  const count = db.prepare("SELECT COUNT(*) as c FROM config").get().c;
-  if (count === 0) {
-    const defaults = {
-      points_victoire: 10,
-      points_defaite: 3,
-      bonus_defense: 1.5,
-      bonus_alliance_focus: 2,
-      multi_egal: 1, // égalité ou supériorité numérique
-      multi_moins1: 1.5, // -1 allié
-      multi_moins2: 2, // -2 alliés
-      multi_moins3: 3, // -3 alliés
-      multi_moins4: 5, // seul contre ou 5
-      multi_plus1: 0.8, // +1 allié
-      multi_plus2: 0.5, // +2 alliés
-      multi_plus3: 0.3, // +3 alliés
-      multi_plus4: 0.1, // +4 alliés
-    };
+  // Insérer les valeurs par défaut s'il manque des clés
 
-    const insert = db.prepare("INSERT INTO config (key, value) VALUES (?, ?)");
-    const insertMany = db.transaction((entries) => {
-      for (const [key, value] of entries) {
-        insert.run(key, value);
-      }
-    });
-    insertMany(Object.entries(defaults));
-  }
+  const defaults = {
+    points_victoire: 10,
+    points_defaite: 3,
+    bonus_defense: 1.5,
+    bonus_alliance_focus: 2,
+    multi_egal: 1, // égalité ou supériorité numérique
+    multi_moins1: 1.5, // -1 allié
+    multi_moins2: 2, // -2 alliés
+    multi_moins3: 3, // -3 alliés
+    multi_moins4: 5, // seul contre ou 5
+    multi_plus1: 0.8, // +1 allié
+    multi_plus2: 0.5, // +2 alliés
+    multi_plus3: 0.3, // +3 alliés
+    multi_plus4: 0.1, // +4 alliés
+    multiplicateur_perco: 1, // multi perco
+    multiplicateur_prisme: 1.3, // multi prisme
+  };
+
+  const insert = db.prepare(
+    "INSERT OR IGNORE INTO config (key, value) VALUES (?, ?)",
+  );
+  const insertMany = db.transaction((entries) => {
+    for (const [key, value] of entries) {
+      insert.run(key, value);
+    }
+  });
+  insertMany(Object.entries(defaults));
 }
 
 // Récupérer toute la config
@@ -90,17 +93,38 @@ export function setConfig(key, value) {
     .run(value, key);
 }
 
-// Obtenir la semaine courante (format ISO : "2026-W11")
+// Obtenir la semaine courante (format ISO 8601 : "2026-W11", semaine commence le lundi)
 export function getCurrentWeek() {
   const now = new Date();
-  const jan1 = new Date(now.getFullYear(), 0, 1);
-  const days = Math.floor((now - jan1) / 86400000);
-  const weekNum = Math.ceil((days + jan1.getDay() + 1) / 7);
-  return `${now.getFullYear()}-W${String(weekNum).padStart(2, "0")}`;
+  const thu = new Date(now);
+  thu.setDate(thu.getDate() + 3 - ((thu.getDay() + 6) % 7));
+  const year = thu.getFullYear();
+  const jan1 = new Date(year, 0, 1);
+  const weekNum =
+    1 +
+    Math.round(((thu - jan1) / 86400000 - 3 + ((jan1.getDay() + 6) % 7)) / 7);
+  return `${year}-W${String(weekNum).padStart(2, "0")}`;
+}
+
+// Obtenir la paire de semaines pour le ladder (W13+W14, W15+W16, etc.)
+export function getLadderWeeks() {
+  const currentWeek = getCurrentWeek();
+  const [year, week] = currentWeek.split("-W");
+  const weekNum = parseInt(week);
+
+  // Déterminer le début de la paire (semaine impaire)
+  const pairStart = Math.floor((weekNum - 1) / 2) * 2 + 1;
+  const pairEnd = pairStart + 1;
+
+  return [
+    `${year}-W${String(pairStart).padStart(2, "0")}`,
+    `${year}-W${String(pairEnd).padStart(2, "0")}`,
+  ];
 }
 
 // Calculer les points d'un combat
 export function calculatePoints(
+  type,
   config,
   resultat,
   role,
@@ -115,18 +139,12 @@ export function calculatePoints(
   // Multiplicateur d'infériorité numérique
   const diff = allyCount - enemyCount;
   let multi;
-  debug(
-    `Calcul points : résultat=${resultat}, rôle=${role}, alliés=${allyCount}, ennemis=${enemyCount}, focus=${allianceFocus}`,
-  );
-  switch (diff) {
-    case diff > 0:
-      multi = config[`multi_plus${diff}`];
-      break;
-    case diff < 0:
-      multi = config[`multi_moins${-diff}`];
-    default:
-      multi = config.multi_egal;
-      break;
+  if (diff > 0) {
+    multi = config[`multi_plus${diff}`];
+  } else if (diff < 0) {
+    multi = resultat === "Victoire" ? config[`multi_moins${-diff}`] : 1;
+  } else {
+    multi = config.multi_egal;
   }
 
   // Bonus défense
@@ -135,7 +153,14 @@ export function calculatePoints(
   // Bonus alliance focus
   const focusBonus = allianceFocus ? config.bonus_alliance_focus : 1;
 
-  return base * multi * defBonus * focusBonus;
+  const typeMulti =
+    type === "Prisme"
+      ? config.multiplicateur_prisme
+      : config.multiplicateur_perco;
+  return (
+    Math.round(base * defBonus * focusBonus * multi * (typeMulti || 1) * 100) /
+    100
+  );
 }
 
 // Enregistrer un combat
@@ -167,6 +192,11 @@ export function insertCombat({
   );
 }
 
+// Récupérer un combat par son ID
+export function getCombat(combatId) {
+  return db.prepare("SELECT * FROM combats WHERE id = ?").get(combatId);
+}
+
 // Valider un combat et attribuer les points
 export function validateCombat(combatId, validatorId, allyIds) {
   const combat = db.prepare("SELECT * FROM combats WHERE id = ?").get(combatId);
@@ -174,12 +204,14 @@ export function validateCombat(combatId, validatorId, allyIds) {
 
   const config = getConfig();
   const points = calculatePoints(
+    combat.type,
     config,
     combat.resultat,
     combat.role,
     allyIds.length,
     combat.ennemis,
     combat.alliance_focus === 1,
+    combat.type,
   );
 
   const semaine = getCurrentWeek();
@@ -204,25 +236,50 @@ export function validateCombat(combatId, validatorId, allyIds) {
   return { points, combat };
 }
 
-// Récupérer le ladder de la semaine courante
+// Annuler la validation d'un combat
+export function unvalidateCombat(combatId) {
+  const combat = db.prepare("SELECT * FROM combats WHERE id = ?").get(combatId);
+  if (!combat || !combat.validated_by) return null;
+
+  const transaction = db.transaction(() => {
+    // Remettre le combat en attente de validation
+    db.prepare(
+      "UPDATE combats SET validated_by = NULL, validated_at = NULL WHERE id = ?",
+    ).run(combatId);
+
+    // Supprimer les scores attribués pour ce combat
+    db.prepare("DELETE FROM scores WHERE combat_id = ?").run(combatId);
+  });
+
+  transaction();
+
+  return { combat };
+}
+
+// Récupérer le ladder des 2 dernières semaines
 export function getLadder() {
-  const semaine = getCurrentWeek();
+  const [week1, week2] = getLadderWeeks();
   return db
     .prepare(
       `
-    SELECT user_id, SUM(points) as total_points, COUNT(*) as combats
-    FROM scores
-    WHERE semaine = ?
-    GROUP BY user_id
+    SELECT
+      s.user_id,
+      SUM(s.points) as total_points,
+      COUNT(s.id) as combats,
+      SUM(CASE WHEN c.resultat = 'Victoire' THEN 1 ELSE 0 END) as victoires
+    FROM scores s
+    JOIN combats c ON s.combat_id = c.id
+    WHERE s.semaine IN (?, ?)
+    GROUP BY s.user_id
     ORDER BY total_points DESC
   `,
     )
-    .all(semaine);
+    .all(week1, week2);
 }
 
-// Statistiques d'un joueur pour la semaine courante
+// Statistiques d'un joueur pour les 2 dernières semaines
 export function getPlayerStats(userId) {
-  const semaine = getCurrentWeek();
+  const [week1, week2] = getLadderWeeks();
   return db
     .prepare(
       `
@@ -233,10 +290,10 @@ export function getPlayerStats(userId) {
       SUM(CASE WHEN c.resultat = 'Défaite' THEN 1 ELSE 0 END) as defaites
     FROM scores s
     JOIN combats c ON s.combat_id = c.id
-    WHERE s.user_id = ? AND s.semaine = ?
+    WHERE s.user_id = ? AND s.semaine IN (?, ?)
   `,
     )
-    .get(userId, semaine);
+    .get(userId, week1, week2);
 }
 
 // Reset hebdomadaire : retourne le top 3 puis purge les scores
@@ -263,4 +320,33 @@ export function weeklyReset() {
 // Reset total (commande admin) : purge TOUS les scores
 export function fullReset() {
   db.prepare("DELETE FROM scores").run();
+}
+
+// Formater l'embed du ladder
+export function formatLadderEmbed() {
+  const [week1, week2] = getLadderWeeks();
+  const ladder = getLadder();
+
+  const embed = new EmbedBuilder()
+    .setTitle("Ladder Percepteurs / Prismes")
+    .setColor(0xffd700)
+    .setTimestamp()
+    .setFooter({ text: `Semaines ${week1} et ${week2}` });
+
+  if (ladder.length === 0) {
+    embed.setDescription("Aucun combat validé sur les 2 dernières semaines.");
+  } else {
+    const medals = ["🥇", "🥈", "🥉"];
+    let desc = "";
+    for (let i = 0; i < ladder.length; i++) {
+      const prefix = i < 3 ? medals[i] : `**${i + 1}.**`;
+      const winrate = ((ladder[i].victoires / ladder[i].combats) * 100).toFixed(
+        1,
+      );
+      desc += `${prefix} <@${ladder[i].user_id}> — **${ladder[i].total_points}** pts | **${ladder[i].victoires}**-${ladder[i].combats - ladder[i].victoires} (${winrate}%)\n`;
+    }
+    embed.setDescription(desc);
+  }
+
+  return embed;
 }

@@ -12,10 +12,10 @@ export default async function stats(interaction) {
     .setColor(0x9b59b6)
     .setThumbnail(targetUser.displayAvatarURL())
     .setTimestamp()
-    .setFooter({ text: `Semaine ${db.getCurrentWeek()}` });
+    .setFooter({ text: `2 dernières semaines` });
 
   if (!playerStats || !playerStats.total_points) {
-    embed.setDescription("Aucun combat validé cette semaine.");
+    embed.setDescription("Aucun combat validé sur les 2 dernières semaines.");
   } else {
     embed.addFields(
       {
