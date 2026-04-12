@@ -31,15 +31,15 @@ Copier `.env.example` vers `.env` et remplir les valeurs :
 cp .env.example .env
 ```
 
-| Variable | Description |
-|---|---|
-| `DISCORD_TOKEN` | Token du bot Discord |
-| `CLIENT_ID` | ID application du bot |
-| `GUILD_ID` | ID du serveur Discord |
+| Variable             | Description                             |
+| -------------------- | --------------------------------------- |
+| `DISCORD_TOKEN`      | Token du bot Discord                    |
+| `CLIENT_ID`          | ID application du bot                   |
+| `GUILD_ID`           | ID du serveur Discord                   |
 | `CHANNEL_VALIDATION` | ID du channel de validation des reports |
-| `CHANNEL_LADDER` | ID du channel du ladder |
-| `ROLE_OFFICIER` | ID du role Lieutenant |
-| `ADMIN_ID` | ID Discord de l'administrateur |
+| `CHANNEL_LADDER`     | ID du channel du ladder                 |
+| `ROLE_OFFICIER`      | ID du role Lieutenant                   |
+| `ADMIN_ID`           | ID Discord de l'administrateur          |
 
 ## Lancement
 
@@ -55,7 +55,9 @@ npm run dev
 
 ### `/perco report`
 
-Signaler un combat. Champs : type, role, resultat, ennemis, allies (mentions), alliance focus, 2 screenshots.
+Signaler un combat. Champs : type, role, resultat, ennemis, allies (mentions + `joker`/`j` pour joueurs hors Discord), alliance focus, 2 screenshots.
+
+Important : au moins un allie doit etre mentionne sur Discord pour recevoir les points. Les jokers comptent pour le calcul du multiplicateur numerique mais ne recoivent pas de points au ladder.
 
 Le report est envoye dans le channel de validation avec boutons Valider/Refuser.
 
@@ -85,22 +87,22 @@ Reinitialise le ladder et purge la BDD (Admin uniquement).
 Points = Base x Multiplicateur x Bonus Defense x Bonus Focus
 ```
 
-| Parametre | Valeur par defaut |
-|---|---|
-| Points Victoire | 10 |
-| Points Defaite | 3 |
-| Bonus Defense | x1.5 |
-| Bonus Alliance Focus | x2 |
+| Parametre            | Valeur par defaut |
+| -------------------- | ----------------- |
+| Points Victoire      | 10                |
+| Points Defaite       | 3                 |
+| Bonus Defense        | x1.5              |
+| Bonus Alliance Focus | x2                |
 
 ### Multiplicateurs d'inferiorite numerique
 
-| Situation | Multiplicateur |
-|---|---|
-| Egalite ou superiorite | x1 |
-| -1 allie | x1.5 |
-| -2 allies | x2 |
-| -3 allies | x3 |
-| Seul contre 4-5 | x5 |
+| Situation              | Multiplicateur |
+| ---------------------- | -------------- |
+| Egalite ou superiorite | x1             |
+| -1 allie               | x1.5           |
+| -2 allies              | x2             |
+| -3 allies              | x3             |
+| Seul contre 4-5        | x5             |
 
 ## Structure du projet
 

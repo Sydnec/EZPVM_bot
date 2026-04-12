@@ -198,7 +198,12 @@ export function getCombat(combatId) {
 }
 
 // Valider un combat et attribuer les points
-export function validateCombat(combatId, validatorId, allyIds) {
+export function validateCombat(
+  combatId,
+  validatorId,
+  allyIds,
+  totalAllies = allyIds.length,
+) {
   const combat = db.prepare("SELECT * FROM combats WHERE id = ?").get(combatId);
   if (!combat) return null;
 
@@ -208,7 +213,7 @@ export function validateCombat(combatId, validatorId, allyIds) {
     config,
     combat.resultat,
     combat.role,
-    allyIds.length,
+    totalAllies,
     combat.ennemis,
     combat.alliance_focus === 1,
     combat.type,

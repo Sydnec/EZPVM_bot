@@ -59,7 +59,7 @@ export const data = new SlashCommandBuilder()
         opt
           .setName("allies")
           .setDescription(
-            "Mentionnez les alliés présents (@joueur1 @joueur2...)",
+            "Allies: mentions (@joueur) + joker/j pour hors Discord",
           )
           .setRequired(true),
       )

@@ -8,6 +8,30 @@ import {
 import * as db from "../../database.js";
 import { info } from "../../logger.js";
 
+function parseAllies(alliesRaw) {
+  const discordIds = [];
+  const mentionRegex = /<@!?(\d+)>/g;
+  let match;
+
+  while ((match = mentionRegex.exec(alliesRaw)) !== null) {
+    if (!discordIds.includes(match[1])) {
+      discordIds.push(match[1]);
+    }
+  }
+
+  // Compte les jokers textuels pour les joueurs hors Discord.
+  const jokerCount = alliesRaw
+    .split(/[\s,;]+/)
+    .map((token) => token.trim().toLowerCase())
+    .filter((token) => token === "joker" || token === "j").length;
+
+  return {
+    discordIds,
+    jokerCount,
+    totalAllies: discordIds.length + jokerCount,
+  };
+}
+
 export default async function report(interaction) {
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
@@ -25,28 +49,37 @@ export default async function report(interaction) {
     `Début report perco par ${interaction.user.tag} (${interaction.user.id})`,
   );
 
-  // Extraction des IDs depuis les mentions
-  const allyIds = [];
-  const mentionRegex = /<@!?(\d+)>/g;
-  let match;
-  while ((match = mentionRegex.exec(alliesRaw)) !== null) {
-    if (!allyIds.includes(match[1])) {
-      allyIds.push(match[1]);
-    }
-  }
+  const { discordIds, jokerCount, totalAllies } = parseAllies(alliesRaw);
 
-  if (allyIds.length === 0) {
+  if (totalAllies === 0) {
     return interaction.editReply({
       content:
-        "Vous devez mentionner au moins un allié (taguez-vous vous-même si vous étiez seul).",
+        "Vous devez indiquer au moins un allié (mention Discord ou mot-clé 'joker').",
     });
   }
 
-  if (allyIds.length > 5) {
+  if (totalAllies > 5) {
     return interaction.editReply({
       content: "Le nombre d'alliés ne peut pas dépasser 5.",
     });
   }
+
+  if (discordIds.length === 0) {
+    return interaction.editReply({
+      content:
+        "Au moins un allié doit être mentionné sur Discord pour recevoir les points (vous pouvez compléter avec des jokers).",
+    });
+  }
+
+  const storedAllies = [
+    ...discordIds.map((id) => `discord:${id}`),
+    ...Array.from({ length: jokerCount }, () => "joker"),
+  ];
+
+  const alliesDisplay = [
+    ...discordIds.map((id) => `<@${id}>`),
+    ...Array.from({ length: jokerCount }, () => "Joker (hors Discord)"),
+  ].join(", ");
 
   // Insérer le combat en BDD (non validé)
   const result = db.insertCombat({
@@ -55,7 +88,7 @@ export default async function report(interaction) {
     role,
     resultat,
     ennemis,
-    allies: allyIds.join(","),
+    allies: storedAllies.join(","),
     allianceFocus,
     screen1Url: screen1.url,
     screen2Url: screen2.url,
@@ -72,7 +105,7 @@ export default async function report(interaction) {
     config,
     resultat,
     role,
-    allyIds.length,
+    totalAllies,
     ennemis,
     allianceFocus,
   );
@@ -88,7 +121,7 @@ export default async function report(interaction) {
       { name: "Ennemis", value: `${ennemis}`, inline: true },
       {
         name: "Alliés",
-        value: allyIds.map((id) => `<@${id}>`).join(", "),
+        value: alliesDisplay,
         inline: true,
       },
       {

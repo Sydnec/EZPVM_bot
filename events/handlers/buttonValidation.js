@@ -8,6 +8,41 @@ import {
 import * as db from "../../database.js";
 import { info, warn, error as logError } from "../../logger.js";
 
+function parseStoredAllies(storedAllies = "") {
+  const tokens = storedAllies
+    .split(",")
+    .map((token) => token.trim())
+    .filter(Boolean);
+
+  const discordIds = [];
+  let jokerCount = 0;
+
+  for (const token of tokens) {
+    if (token.startsWith("discord:")) {
+      const id = token.slice("discord:".length);
+      if (id && !discordIds.includes(id)) {
+        discordIds.push(id);
+      }
+      continue;
+    }
+
+    if (token === "joker") {
+      jokerCount += 1;
+      continue;
+    }
+
+    // Compatibilite anciens reports: stockes uniquement sous forme d'ID Discord.
+    if (/^\d+$/.test(token) && !discordIds.includes(token)) {
+      discordIds.push(token);
+    }
+  }
+
+  return {
+    discordIds,
+    totalAllies: discordIds.length + jokerCount,
+  };
+}
+
 export default async function handleButton(client, interaction) {
   const [action, combatIdStr] = interaction.customId.split("_");
   const combatId = parseInt(combatIdStr, 10);
@@ -144,34 +179,31 @@ export default async function handleButton(client, interaction) {
     }
 
     // --- Validation ---
-    const infoEmbed = interaction.message.embeds[0];
-    const alliesField = infoEmbed.fields.find((f) => f.name === "Alliés");
-    if (!alliesField) {
+    const combat = db.getCombat(combatId);
+    if (!combat) {
       await interaction.followUp({
-        content: "Erreur : impossible de trouver les alliés dans le report.",
+        content: "Erreur : combat introuvable en base de données.",
         flags: MessageFlags.Ephemeral,
       });
       return;
     }
 
-    const allyIds = [];
-    const mentionRegex = /<@!?(\d+)>/g;
-    let match;
-    while ((match = mentionRegex.exec(alliesField.value)) !== null) {
-      if (!allyIds.includes(match[1])) {
-        allyIds.push(match[1]);
-      }
-    }
+    const { discordIds, totalAllies } = parseStoredAllies(combat.allies);
 
-    if (allyIds.length === 0) {
+    if (totalAllies === 0 || discordIds.length === 0) {
       await interaction.followUp({
-        content: "Erreur : aucun allié trouvé dans le report.",
+        content: "Erreur : aucun allié Discord valide trouvé dans le report.",
         flags: MessageFlags.Ephemeral,
       });
       return;
     }
 
-    const result = db.validateCombat(combatId, interaction.user.id, allyIds);
+    const result = db.validateCombat(
+      combatId,
+      interaction.user.id,
+      discordIds,
+      totalAllies,
+    );
 
     if (!result) {
       await interaction.followUp({
@@ -213,7 +245,7 @@ export default async function handleButton(client, interaction) {
     });
 
     info(
-      `Report validé: combat #${combatId} par ${interaction.user.tag} (${interaction.user.id}), points=${result.points}, ennemis=${result.combat.ennemis}, alliés=${allyIds.length}`,
+      `Report validé: combat #${combatId} par ${interaction.user.tag} (${interaction.user.id}), points=${result.points}, ennemis=${result.combat.ennemis}, alliés_total=${totalAllies}, alliés_discord=${discordIds.length}`,
     );
 
     // Mettre à jour le ladder épinglé
